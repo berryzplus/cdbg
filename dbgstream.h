@@ -1,79 +1,95 @@
 // -*- mode: c++ -*-
 
-#include <windows.h>
-#include <cstdlib>
+#pragma once
+
 #include <iostream>
 
 template <class Ch,class Tr=std::char_traits<Ch> >
 class basic_debug_streambuf : public std::basic_streambuf<Ch,Tr> {
 private:
-  static const int init_size=0x100;
-  int current_size;
-  Ch* buffer;
+  static constexpr int  init_size = 0x100;
+  int                   _Size = 0;
+  std::unique_ptr<Ch[]> _Buffer;
 
 public:
-  basic_debug_streambuf() :current_size(init_size), buffer(NULL) {
-    buffer = static_cast<Ch*>(std::malloc(sizeof(Ch)*init_size));
-    if(buffer==NULL) throw std::bad_alloc();
-    this->setp(buffer, &buffer[init_size]);
-  }
+  using int_type = std::basic_streambuf<Ch, Tr>::int_type;
 
-  ~basic_debug_streambuf() {
+  basic_debug_streambuf() = default;
+
+  ~basic_debug_streambuf()
+  {
     sync();
-    free(buffer);
   }
-  
+
 protected:
-  std::basic_streambuf<Ch,Tr>* setbuf(Ch* b,int s) {
-    std::free(buffer);
-    this->setp(b, &b[s]);
-    return this;
-  }
-
-  int overflow(int ch = Tr::eof()) {
-    if(!Tr::eq_int_type(ch, Tr::eof())) {
-      if(this->pptr() >= &buffer[current_size]) {
-        int old_size = current_size;
-        current_size*=2;
-        Ch* old_buffer=buffer;
-        buffer=static_cast<Ch*>(realloc(buffer, sizeof(Ch)*current_size));
-        if(buffer==NULL) {
-          free(old_buffer);
-          throw std::bad_alloc();
-        }
-        this->setp(buffer, &buffer[current_size]);
-        this->pbump(old_size);
-      }
-      *(this->pptr()) = Tr::to_char_type(ch);
-      this->pbump(1);
-      return Tr::not_eof(ch);
-    } else {
-      return Tr::eof();
+  int_type overflow(int_type ch = Tr::eof()) override {
+    if (!this->pptr())
+    {
+      _Buffer = std::make_unique<Ch[]>(init_size);
+      this->setp(&_Buffer[0], &_Buffer[init_size]);
+      _Size = init_size;
     }
+    else if (this->pptr() >= this->epptr())
+    {
+      const auto old_size = _Size;
+      const auto new_size = old_size * 2;
+
+      auto new_buffer = std::make_unique<Ch[]>(new_size);
+      std::copy(this->pbase(), this->epptr(), new_buffer.get());
+      _Buffer.swap(std::move(new_buffer));
+
+      this->setp(&_Buffer[0], &_Buffer[new_size]);
+      this->pbump(old_size);
+      _Size = new_size;
+    }
+
+    return this->sputc(Tr::to_char_type(ch));
   }
 
-  int sync(void) {
-    overflow('\0');
-    OutputDebugString(this->pbase());
-    this->setp(buffer, &buffer[current_size]);
+  int sync(void) override {
+    if (const auto count = this->pptr() - this->pbase())
+    {
+      if (*this->pptr() && Tr::eq_int_type(Tr::eof(), overflow('\0')))
+      {
+        return 1; // fail
+      }
+
+      auto output_string = std::basic_string_view<Ch, Tr>(this->pbase(), count);
+      output_debug_string(output_string);
+      this->setp(this->pbase(), this->epptr());
+    }
+
     return 0;
   }
+
+  virtual void output_debug_string(std::basic_string_view<Ch, Tr> output_string) const;
 };
 
 template <class Ch,class Tr=std::char_traits<Ch> >
 class basic_debug_stream : public std::basic_ostream<Ch,Tr> {
+private:
+  std::unique_ptr<basic_debug_streambuf<Ch, Tr>> _StreamBuf;
+
 public:
   basic_debug_stream(void)
-    :std::basic_ostream<Ch,Tr>(new basic_debug_streambuf<Ch,Tr>) {
+    : basic_debug_stream<Ch, Tr>(std::make_unique<basic_debug_streambuf<Ch, Tr>>()) {
+  }
+
+  explicit basic_debug_stream(std::unique_ptr<basic_debug_streambuf<Ch, Tr>>&& stream_buf)
+    : std::basic_ostream<Ch, Tr>(std::_Noinit)
+    , _StreamBuf(std::move(stream_buf)) {
+    std::basic_ios<Ch, Tr>::init(_StreamBuf.get(), false);
   }
 
   ~basic_debug_stream(void) {
     this->flush();
-    delete this->rdbuf();
   }
 };
 
-typedef basic_debug_streambuf<char> debug_streambuf;
-typedef basic_debug_stream<char> debug_stream;
+using debug_streambuf  = basic_debug_streambuf<char>;
+using wdebug_streambuf = basic_debug_streambuf<wchar_t>;
+using debug_stream     = basic_debug_stream<char>;
+using wdebug_stream    = basic_debug_stream<wchar_t>;
 
-extern debug_stream cdbg;
+extern debug_stream  cdbg;
+extern wdebug_stream wcdbg;

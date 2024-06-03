@@ -1,0 +1,15 @@
+{
+  "name": "cdbg",
+  "version": "1.0",
+  "description": "Requires CMake version 3.7 or later.",
+  "features": {
+    "tests": {
+      "description": "Build Tests",
+      "dependencies": [ "gtest" ]
+    },
+    "examples": {
+      "description": "Build Examples",
+      "dependencies": [ "spdlog" ]
+    }
+  }
+}

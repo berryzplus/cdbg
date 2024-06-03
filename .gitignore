@@ -1,0 +1,8 @@
+﻿# visual studioのワーキングディレクトリ
+.vs
+
+# visual studioのビルドディレクトリ
+build
+
+# visual studioのテスト結果出力ディレクトリ
+TestResults

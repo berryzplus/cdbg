@@ -1,4 +1,4 @@
-# debug stream library
+﻿# debug stream library
 
 This library provide stream interface for `OutputDebugString`.
 
@@ -6,15 +6,25 @@ You can output debug string to `cdbg` in same way as output to `std::cout` or `s
 
 ## Building & installation
 
-```
-make install
+This package is designed to be used with vcpkg.
+
+If you want to build it standalone, please open the folder with "Open Folder" in Visual Studio.
+Visual Studio generates the CMake commands for the build.
+
+If you want to build from the command line, you can build with the following commands.
+
+```powershell
+mkdir build
+cd build
+cmake ..
+cmake --build .
 ```
 
 ## Build requirements
 
-* MinGW32
-* Windows
-* GCC or Clang
+* CMake (Requires version 3.7 or later)
+* Windows SDK (Requires any version)
+* C++ Compiler (Requires support for C++17 standard)
 
 ## License
 
